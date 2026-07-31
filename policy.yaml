@@ -1,0 +1,49 @@
+# jb_gateway_mcp policy file — deny-by-default.
+#
+# This file currently grants nothing, which is a valid and safe starting
+# state — every caller/tool combination is denied until an entry is added
+# below. Authorization is an operational decision for whoever deploys this
+# server; live grants are not hardcoded here.
+#
+# Registered tools (see src/jb_gateway_mcp/adapters/):
+#   gmail.list_messages    (scope: gmail.readonly)
+#   gmail.read_message     (scope: gmail.readonly)
+#   gmail.send_message     (scope: gmail.send)
+#   calendar.list_events   (scope: calendar.readonly)
+#   calendar.create_event  (scope: calendar.events)
+#   drive.list_files       (scope: drive.readonly)
+#   drive.read_file        (scope: drive.readonly)
+#
+# Shape (from DESIGN.md section 7):
+#
+# callers:
+#   agent-x:
+#     allow:
+#       - tool: gmail.list_messages
+#         scope: gmail.readonly
+#       - tool: calendar.list_events
+#         scope: calendar.readonly
+#   agent-y:
+#     allow:
+#       - tool: gmail.send_message
+#         scope: gmail.send
+
+callers:
+  local:
+    allow:
+      - tool: gmail.list_messages
+        scope: gmail.readonly
+      - tool: gmail.read_message
+        scope: gmail.readonly
+      - tool: calendar.list_events
+        scope: calendar.readonly
+      - tool: drive.list_files
+        scope: drive.readonly
+      - tool: drive.read_file
+        scope: drive.readonly
+      # Only add these if you actually want an agent to be able to send
+      # mail / create events on your behalf:
+      # - tool: gmail.send_message
+      #   scope: gmail.send
+      # - tool: calendar.create_event
+      #   scope: calendar.events

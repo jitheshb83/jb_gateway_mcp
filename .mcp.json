@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "jb-gateway-mcp": {
+      "command": "/Users/jithesh/Documents/GitHub/jb_gateway_mcp/scripts/start.sh",
+      "env": {
+        "JB_GATEWAY_CALLER_ID": "local"
+      }
+    }
+  }
+}
