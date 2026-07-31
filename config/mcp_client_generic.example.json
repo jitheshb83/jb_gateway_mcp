@@ -1,0 +1,12 @@
+{
+  "_comment": "Generic MCP stdio server entry. Several MCP clients (Cursor, Windsurf, Cline, etc.) use this same 'mcpServers' JSON shape in their own config file — check that client's docs for the exact file location, then copy the block below into it. 'local' matches the caller id already granted access in this repo's policy.yaml.",
+  "mcpServers": {
+    "jb-gateway-mcp": {
+      "command": "/absolute/path/to/jb_gateway_mcp/scripts/start.sh",
+      "args": [],
+      "env": {
+        "JB_GATEWAY_CALLER_ID": "local"
+      }
+    }
+  }
+}

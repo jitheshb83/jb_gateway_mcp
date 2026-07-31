@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# uv / venv
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets / credentials — never commit these
+.env
+*.env
+*.key
+*.pem
+client_secret*.json
+*credentials*.json
+audit.jsonl
+*.audit.jsonl
+
+# OS
+.DS_Store
