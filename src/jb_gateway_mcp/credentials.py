@@ -13,6 +13,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 
 import keyring
+import keyring.errors
 
 from jb_gateway_mcp import token_lifecycle
 
@@ -80,6 +81,15 @@ class CredentialStore:
                 f"no credential stored for provider={provider!r} account={account!r}"
             )
         return _deserialize(raw)
+
+    def delete_token(self, provider: str, account: str) -> None:
+        """Remove a stored token from the OS keychain (used by uninstall)."""
+        try:
+            keyring.delete_password(_service_name(provider), account)
+        except keyring.errors.PasswordDeleteError as exc:
+            raise CredentialNotFoundError(
+                f"no credential stored for provider={provider!r} account={account!r}"
+            ) from exc
 
     def get_valid_token(self, provider: str, account: str) -> TokenRecord:
         """Return a non-expired token, refreshing and persisting it if needed.

@@ -131,6 +131,14 @@ The stdio round-trip test in `tests/test_server.py` spawns the real server
 process and calls `ping` over a real MCP session — the same mechanism any
 client uses.
 
+For a fuller live check (handshake, all 8 tools discovered, `ping`, policy
+enforcement on the Google tools, and an audit-log integrity check), run the
+project skill's smoke test:
+
+```bash
+uv run python .claude/skills/run-jb-gateway-mcp/scripts/smoke_test.py
+```
+
 ## 6. Connect a real client
 
 Every client config below launches [`scripts/start.sh`](scripts/start.sh)
@@ -187,6 +195,25 @@ and that client's own docs for where its config file lives.
 | `drive.list_files` | `drive.readonly` | `account`, `query`, `page_size` |
 | `drive.read_file` | `drive.readonly` | `account`, `file_id` |
 
+## Network & ports
+
+**The gateway itself listens on nothing.** It's a stdio MCP server — the
+client (Claude Desktop/Code, etc.) launches it as a subprocess and talks to
+it over the process's stdin/stdout pipes. There's no port, no host, no URL,
+no listening socket at any point during normal operation — it isn't
+reachable over the network at all, by design (see
+[DESIGN.md](DESIGN.md#locked-decisions)).
+
+The one exception is the **one-time `onboard-google` step**: it briefly
+starts a local HTTP server on `localhost:8080` (via
+`google_auth_oauthlib`'s `InstalledAppFlow.run_local_server`) purely to
+catch Google's OAuth redirect after you approve consent in the browser. It
+shuts down immediately once the redirect arrives — nothing is listening
+before or after that single command runs. If port 8080 is already in use on
+your machine, that command will fail; there's currently no flag to change
+the port, so free up 8080 or temporarily stop whatever else is using it
+before running `onboard-google`.
+
 ## Troubleshooting
 
 - **"no grant for caller X on tool Y"** — expected deny-by-default behavior.
@@ -206,3 +233,47 @@ and that client's own docs for where its config file lives.
 - `gmail.send_message` and `calendar.create_event` are the only
   write-capable tools; they are not granted in the default `policy.yaml` —
   add them deliberately, only for callers that actually need them.
+
+## Uninstalling
+
+Deleting the repo folder alone is **not enough** — stored tokens and the
+Google-side consent grant live outside it. Full teardown, in order:
+
+1. **Remove it from every client you connected it to:**
+   - Claude Desktop — delete the `jb-gateway-mcp` entry from
+     `claude_desktop_config.json`, then restart Claude Desktop.
+   - Claude Code — remove/delete `.mcp.json` (project-scoped), or
+     `claude mcp remove jb-gateway-mcp` if you registered it globally
+     instead.
+   - Any other client — remove its equivalent `mcpServers` entry.
+
+2. **Run the uninstall command** — revokes the account's grant on Google's
+   side (RFC 7009 token revocation) *and* deletes its token from the OS
+   keychain, in one step:
+   ```bash
+   uv run uninstall-google --account you@example.com
+   ```
+   Prompts for confirmation per account (add `--yes` to skip); repeatable
+   with multiple `--account` flags to clean up more than one at once. If
+   the network call to Google fails, it still deletes the local keychain
+   entry and tells you to revoke access manually at
+   [myaccount.google.com/permissions](https://myaccount.google.com/permissions)
+   — `--keep-remote-grant` skips the network call entirely and only deletes
+   locally (e.g. if you already revoked access on Google's side, or the
+   grant was for a different app).
+
+   Deleting the repo without running this leaves the token sitting in your
+   keychain, and the grant active on Google's side, indefinitely.
+
+3. **Delete local state you don't want lingering** (all outside the repo,
+   so `rm -rf`-ing the project directory won't touch these):
+   - Audit log: `JB_GATEWAY_AUDIT_LOG` (default `~/.jb_gateway_mcp/`)
+   - Your `client_secret.json` copy, wherever you stored it outside the repo
+
+4. **Remove the project itself:**
+   ```bash
+   rm -rf /path/to/jb_gateway_mcp   # deletes .venv and all repo files together
+   ```
+
+Steps 1–4 are the parts people usually forget — the repo directory is the
+least sensitive thing to clean up here.
