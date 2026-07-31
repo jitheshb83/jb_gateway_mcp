@@ -203,17 +203,93 @@ src/jb_gateway_mcp/
     token_lifecycle.py         # refresh logic, NeedsReconsentError
     audit.py                    # structured JSONL logger, redaction
     adapters/
-        base.py                   # Adapter protocol (tool name -> handler, required scope)
-        google_gmail.py
-        google_calendar.py
-        google_drive.py
+        base.py                   # shared ToolSpec + Google API client builder
+        google_gmail.py             # list/read/send
+        google_calendar.py          # list/create events
+        google_drive.py             # list/read files
     cli/
         onboard_google.py          # OAuth consent flow entrypoint
+        uninstall.py                # revoke grant + delete keychain token, per account
 tests/
     (mirrors src/ layout)
+scripts/
+    start.sh                # launches the server; every client config points here
+config/
+    claude_desktop_config.example.json
+    mcp_client_generic.example.json
+.claude/skills/
+    run-jb-gateway-mcp/       # project skill: spawn + drive a real MCP session to verify the server
+.mcp.json                  # active Claude Code project config
 policy.yaml
 pyproject.toml
+README.md                  # step-by-step setup/usage/configuration guide (start here to run it)
 ```
+
+---
+
+## Setup & usage (as-built)
+
+This section summarizes what's actually running today; **[README.md](README.md)
+is the maintained, step-by-step version** — treat it as authoritative if
+anything here drifts.
+
+1. **Install**: `uv sync` (Python 3.13, managed by `uv`).
+2. **Create a Google OAuth client** once, in Google Cloud Console (Desktop
+   app type, Gmail/Calendar/Drive APIs enabled) — produces a
+   `client_secret.json` you keep outside the repo.
+3. **Onboard an account** (one-time, human-run, opens a browser):
+   ```bash
+   uv run onboard-google --account you@example.com \
+     --client-secrets ~/.secrets/jb_gateway_mcp/client_secret.json
+   ```
+   Defaults to read-only Gmail/Calendar/Drive scopes; pass `--scopes`
+   explicitly to also grant `gmail.send` / `calendar.events`.
+4. **Grant policy access** — edit `policy.yaml` (deny-by-default; nothing
+   works until a caller has an explicit `allow` entry there).
+5. **Run it** via `./scripts/start.sh` — resolves the project root, checks
+   `uv`/`policy.yaml` are present, and `exec`s into `uv run jb-gateway-mcp`
+   so a launching client's process lifecycle reaches the real server
+   directly. Every client config below points at this script, not at `uv`
+   directly.
+6. **Connect a client** — all use the same `JB_GATEWAY_CALLER_ID=local`
+   (single-user, local deployment; see the Policy model section above for
+   why one shared caller id is intentional here, not a shortcut):
+   - **Claude Code** — [`.mcp.json`](.mcp.json) at the repo root, picked up
+     automatically when the folder is opened.
+   - **Claude Desktop** — copy
+     [`config/claude_desktop_config.example.json`](config/claude_desktop_config.example.json)
+     into `claude_desktop_config.json`, with an absolute path to
+     `scripts/start.sh`.
+   - **Other MCP clients** (Cursor, Windsurf, Cline, etc.) — same
+     `mcpServers` shape, see
+     [`config/mcp_client_generic.example.json`](config/mcp_client_generic.example.json).
+7. **Verify it's working** — `.claude/skills/run-jb-gateway-mcp/` is a
+   project skill that spawns the real server via `scripts/start.sh` and
+   drives a real MCP session against it (handshake, tool discovery, `ping`,
+   policy-gated tool calls, audit log integrity check):
+   ```bash
+   uv run python .claude/skills/run-jb-gateway-mcp/scripts/smoke_test.py
+   ```
+
+Full tool catalog, environment variable reference, and troubleshooting are
+in [README.md](README.md).
+
+**Network:** the gateway itself binds no port and exposes no URL — it's
+stdio-only, reachable only as a subprocess of the client that launched it
+(matches the "Locked decisions" transport row above). The single exception
+is `onboard-google`, which briefly opens a local OAuth-redirect listener on
+`localhost:8080` for the duration of that one command only. See
+[README.md "Network & ports"](README.md) for details.
+
+**Uninstalling:** deleting the repo directory alone leaves stored OAuth
+tokens in the OS keychain and the consent grant active on the Google
+account side. `uv run uninstall-google --account you@example.com` handles
+both in one step — revokes the grant at Google's token revocation endpoint
+(RFC 7009) and deletes the keychain entry, falling back to local-only
+deletion with a manual-revoke pointer if the network call fails. See
+[README.md "Uninstalling"](README.md) for the full teardown order (remove
+from client configs → run `uninstall-google` → delete local state → delete
+the repo).
 
 ## Policy model (`policy.yaml`)
 
@@ -255,10 +331,12 @@ phase lands — `router.py`/`policy.py` are written against an abstract
 
 ## Phased build order
 
-1. Scaffolding — `uv init`, MCP server skeleton with one no-op tool, ruff/mypy/pytest wired.
-2. Credential store + Google OAuth onboarding CLI.
-3. Policy engine + audit log, wired into the router before any adapter runs.
-4. Google adapters — Gmail (read/send), Calendar (read/write), Drive (read).
-5. Tests + hardening — refresh failure paths, policy-deny paths, no-secret-in-logs check.
+1. ✅ Scaffolding — `uv init`, MCP server skeleton with one no-op tool, ruff/mypy/pytest wired.
+2. ✅ Credential store + Google OAuth onboarding CLI.
+3. ✅ Policy engine + audit log, wired into the router before any adapter runs.
+4. ✅ Google adapters — Gmail (list/read/send), Calendar (list/create), Drive (list/read).
+5. ✅ Tests + hardening — refresh failure paths, policy-deny paths, no-secret-in-logs check,
+   plus a startup script, client configs, and a project skill for live verification
+   (see "Setup & usage" above).
 6. *(Future)* Networked transport (HTTP/SSE) + caller authentication.
 7. *(Future)* Financial adapter — read-only, via an aggregator (e.g. Plaid).

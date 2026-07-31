@@ -17,7 +17,6 @@ import json
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -84,7 +83,10 @@ async def main() -> int:
             print("    UNEXPECTED ping response", file=sys.stderr)
             return 1
 
-        print(f"[4] Calling Google tools as caller={CALLER_ID!r} (allow/deny depends on policy.yaml):")
+        print(
+            f"[4] Calling Google tools as caller={CALLER_ID!r} "
+            "(allow/deny depends on policy.yaml):"
+        )
         for tool_name, args in [
             ("gmail.list_messages", {"account": ACCOUNT, "query": ""}),
             ("calendar.list_events", {"account": ACCOUNT}),

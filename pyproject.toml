@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 jb-gateway-mcp = "jb_gateway_mcp.server:main"
 onboard-google = "jb_gateway_mcp.cli.onboard_google:main"
+uninstall-google = "jb_gateway_mcp.cli.uninstall:main"
 
 [build-system]
 requires = ["hatchling"]

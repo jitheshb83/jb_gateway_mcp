@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
+import keyring.errors
 import pytest
 from pytest_mock import MockerFixture
 
@@ -159,6 +160,36 @@ def test_get_valid_token_refresh_failure_does_not_update_store(mocker: MockerFix
 
     # store must still hold the original (stale) record, not bad/partial data
     assert cred_store.get_token("google", "me@example.com") == expired
+
+
+def test_delete_token_removes_stored_record(mocker: MockerFixture) -> None:
+    store, set_password, get_password = _fake_keyring_backend()
+
+    def delete_password(service_name: str, username: str) -> None:
+        del store[(service_name, username)]
+
+    mocker.patch("jb_gateway_mcp.credentials.keyring.set_password", side_effect=set_password)
+    mocker.patch("jb_gateway_mcp.credentials.keyring.get_password", side_effect=get_password)
+    mocker.patch("jb_gateway_mcp.credentials.keyring.delete_password", side_effect=delete_password)
+
+    cred_store = CredentialStore()
+    cred_store.put_token(_make_record())
+    cred_store.delete_token("google", "me@example.com")
+
+    assert store == {}
+    with pytest.raises(CredentialNotFoundError):
+        cred_store.get_token("google", "me@example.com")
+
+
+def test_delete_token_raises_when_missing(mocker: MockerFixture) -> None:
+    mocker.patch(
+        "jb_gateway_mcp.credentials.keyring.delete_password",
+        side_effect=keyring.errors.PasswordDeleteError,
+    )
+
+    cred_store = CredentialStore()
+    with pytest.raises(CredentialNotFoundError):
+        cred_store.delete_token("google", "nobody@example.com")
 
 
 def test_token_record_rejects_naive_datetime() -> None:
