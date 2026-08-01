@@ -31,6 +31,7 @@ from generate_report import monthly_summaries_by_currency  # noqa: E402
 
 from jb_gateway_mcp.adapters.google_gmail import send_message
 from jb_gateway_mcp.credentials import CredentialNotFoundError, CredentialStore
+from jb_gateway_mcp.token_lifecycle import NeedsReconsentError
 
 FROM_ACCOUNT = "jithesh83@gmail.com"
 TO_ADDRESS = "jithesh@jithonline.com"
@@ -98,6 +99,21 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"No Google credential stored for {FROM_ACCOUNT} — email not sent. "
             "Run the connect-google-account skill.",
+            file=sys.stderr,
+        )
+        return 1
+    except NeedsReconsentError:
+        # The one failure this whole notification system can't email about:
+        # if Gmail's own refresh token is what's broken, there's no channel
+        # left but the log. Print something unambiguous instead of a raw
+        # traceback, so `grep` on the log file finds it immediately.
+        print(
+            f"Google refresh token for {FROM_ACCOUNT} needs re-consent — email not sent. "
+            f"Run: uv run onboard-google --account {FROM_ACCOUNT} --client-secrets <path> "
+            "--scopes https://www.googleapis.com/auth/gmail.readonly "
+            "https://www.googleapis.com/auth/gmail.send "
+            "https://www.googleapis.com/auth/calendar.readonly "
+            "https://www.googleapis.com/auth/drive.readonly",
             file=sys.stderr,
         )
         return 1
