@@ -9,24 +9,37 @@ number.
 
 Full design/architecture: [DESIGN.md](DESIGN.md) / [DESIGN.pdf](DESIGN.pdf).
 
-## Setup skills (recommended if you're using Claude Code)
+## Skills (recommended if you're using Claude Code)
 
-Everything from "Install" onward can be driven interactively instead of by
-hand — two skills ship in `.claude/skills/`:
+Everything from "Install" onward, plus day-to-day usage, can be driven
+interactively instead of by hand — four skills ship in `.claude/skills/`:
 
 - **`connect-google-account`** — connects or refreshes a Google account
   (Gmail/Calendar/Drive). Just ask, e.g. "connect my Google account to
-  jb_gateway_mcp" or "refresh my Google credentials."
+  jb_gateway_mcp" or "refresh my Google credentials." Includes a
+  status-check script to see whether an account needs re-consent without
+  waiting for a tool call to fail.
 - **`connect-bank-account`** — connects or refreshes a bank account (DNB,
   Nordea, Revolut, or any other Enable Banking-supported institution). Just
   ask, e.g. "connect my DNB account" or "refresh my bank credentials."
+- **`run-jb-gateway-mcp`** — launches the server and drives a real MCP
+  session against it end-to-end (handshake, tool discovery, `ping`,
+  policy-gated tool calls, audit log integrity check). Ask e.g. "run
+  jb_gateway_mcp" or "smoke-test the gateway."
+- **`finance-report`** — generates a local HTML financial report (income/
+  expense trends, category breakdown, a next-month forecast) from linked
+  bank accounts, cached under `~/Documents/MyFinance/` for reuse, with an
+  optional unattended monthly automation (`launchd` + email notification).
+  Ask e.g. "generate my finance report for July" or "set up the monthly
+  report automation."
 
-Both walk through the steps documented below — app/consent registration
-where a browser is unavoidable, running the onboarding CLI, adding the right
-`policy.yaml` grants — and verify the result against live data before
-calling it done. The rest of this README is the manual reference for each
-step: useful if you're not driving this through Claude Code, or want to
-understand exactly what the skills automate.
+The two `connect-*` skills walk through the steps documented below —
+app/consent registration where a browser is unavoidable, running the
+onboarding CLI, adding the right `policy.yaml` grants — and verify the
+result against live data before calling it done. The rest of this README
+is the manual reference for each step: useful if you're not driving this
+through Claude Code, or want to understand exactly what the skills
+automate.
 
 ## Prerequisites
 
