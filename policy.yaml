@@ -6,13 +6,19 @@
 # server; live grants are not hardcoded here.
 #
 # Registered tools (see src/jb_gateway_mcp/adapters/):
-#   gmail.list_messages    (scope: gmail.readonly)
-#   gmail.read_message     (scope: gmail.readonly)
-#   gmail.send_message     (scope: gmail.send)
-#   calendar.list_events   (scope: calendar.readonly)
-#   calendar.create_event  (scope: calendar.events)
-#   drive.list_files       (scope: drive.readonly)
-#   drive.read_file        (scope: drive.readonly)
+#   gmail.list_messages           (scope: gmail.readonly)
+#   gmail.read_message             (scope: gmail.readonly)
+#   gmail.send_message             (scope: gmail.send)
+#   calendar.list_events           (scope: calendar.readonly)
+#   calendar.create_event          (scope: calendar.events)
+#   drive.list_files               (scope: drive.readonly)
+#   drive.read_file                (scope: drive.readonly)
+#   bank.list_accounts             (scope: bank.readonly)
+#   bank.get_balance                (scope: bank.readonly)
+#   bank.summarize_spending         (scope: bank.readonly)
+#   bank.list_transactions_summary  (scope: bank.readonly)
+#   bank.list_transactions_detailed (scope: bank.transactions.detailed — adds
+#     counterparty name/description; IBANs stay masked either way)
 #
 # Shape (from DESIGN.md section 7):
 #
@@ -41,9 +47,22 @@ callers:
         scope: drive.readonly
       - tool: drive.read_file
         scope: drive.readonly
+      - tool: bank.list_accounts
+        scope: bank.readonly
+      - tool: bank.get_balance
+        scope: bank.readonly
+      - tool: bank.summarize_spending
+        scope: bank.readonly
+      - tool: bank.list_transactions_summary
+        scope: bank.readonly
       # Only add these if you actually want an agent to be able to send
       # mail / create events on your behalf:
-      # - tool: gmail.send_message
-      #   scope: gmail.send
-      # - tool: calendar.create_event
-      #   scope: calendar.events
+      - tool: gmail.send_message
+        scope: gmail.send
+      - tool: calendar.create_event
+        scope: calendar.events
+      # Adds counterparty name + payment description to transaction results
+      # (IBANs stay masked either way). Off by default — only add this if
+      # you deliberately want that level of detail reachable by an agent:
+      - tool: bank.list_transactions_detailed
+        scope: bank.transactions.detailed

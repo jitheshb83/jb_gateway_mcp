@@ -1,6 +1,6 @@
 ---
 name: connect-google-account
-description: Connects/onboards a real Google account (Gmail, Calendar, Drive) to jb_gateway_mcp — runs the one-time OAuth consent flow (`onboard-google`) and adds the matching grants to policy.yaml so the tools actually work end-to-end. Use when asked to connect, link, onboard, authorize, hook up, or set up a Google/Gmail/Drive/Calendar account for jb_gateway_mcp.
+description: Connects/onboards a real Google account (Gmail, Calendar, Drive) to jb_gateway_mcp, or refreshes/reconnects one whose stored grant was revoked — runs the OAuth consent flow (`onboard-google`) and adds the matching grants to policy.yaml so the tools actually work end-to-end. Use when asked to connect, link, onboard, authorize, hook up, refresh, renew, or reconnect a Google/Gmail/Drive/Calendar account for jb_gateway_mcp.
 ---
 
 # Connecting a Google account to jb_gateway_mcp
@@ -17,6 +17,39 @@ separate steps that both have to happen:
 
 Skipping step 2 is the most common "it onboarded fine but the tool call
 still fails" case — check policy.yaml if that happens.
+
+## Refreshing vs. connecting
+
+Unlike bank consent (`connect-bank-account`, SCA-backed, expires every 90
+days by design), a Google refresh token doesn't expire on a schedule —
+`CredentialStore.get_valid_token` (`src/jb_gateway_mcp/credentials.py`)
+silently mints a new access token from it on every tool call, no human
+action ever needed in the common case. A manual **re-run of `onboard-google`
+is only needed** if the refresh token itself was revoked (user removed the
+app's access at myaccount.google.com/permissions, or it naturally expired
+after 6 months of no use, or `ran onboard-google` and it just needs first-time
+onboarding) — that surfaces as `NeedsReconsentError` from
+`src/jb_gateway_mcp/token_lifecycle.py` on a tool call, not as a background
+failure. To check without waiting for a tool call to fail:
+
+```bash
+uv run python -c "
+from jb_gateway_mcp.credentials import CredentialStore, CredentialNotFoundError
+from jb_gateway_mcp.token_lifecycle import NeedsReconsentError
+try:
+    CredentialStore().get_valid_token('google', '<account-email>')
+    print('token valid (or refreshed successfully)')
+except CredentialNotFoundError:
+    print('not connected — needs onboard-google')
+except NeedsReconsentError:
+    print('refresh token revoked — needs onboard-google again')
+"
+```
+
+If it says revoked/needs reconsent, **Steps 3–5 below are the fix** —
+same command as a first-time connect, for the same `--account`. It
+overwrites the stored token; no `policy.yaml` change is needed unless the
+scopes are also changing.
 
 ## No fallback to other tools
 
