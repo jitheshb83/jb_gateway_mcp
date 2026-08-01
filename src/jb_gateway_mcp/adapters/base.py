@@ -17,11 +17,19 @@ from jb_gateway_mcp.credentials import CredentialStore
 
 @dataclass(frozen=True)
 class ToolSpec:
-    """Describes one adapter tool: its name, required policy scope, and description."""
+    """Describes one adapter tool: its name, required policy scope, and description.
+
+    `cache_ttl_seconds`: opt-in, per-tool. None (the default) means never
+    cached — every call reaches the handler. Only set this for read-only,
+    idempotent tools where slightly-stale data is an acceptable trade for
+    not re-hitting a scarce upstream quota (e.g. Enable Banking's daily,
+    not short-term, per-consent access cap) — never for a write/send tool.
+    """
 
     name: str
     scope: str
     description: str
+    cache_ttl_seconds: float | None = None
 
 
 def build_google_client(
