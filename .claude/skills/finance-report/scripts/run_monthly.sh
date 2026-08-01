@@ -41,10 +41,13 @@ LOG_FILE="$LOG_DIR/${LABEL}-run-$(date +%Y%m%d-%H%M%S).log"
   REPORT_EXIT=$?
   echo "generate_report.py exit: $REPORT_EXIT"
 
-  INSTITUTIONS_SLUG=$(echo "$INSTITUTIONS" | tr ',' '-')
-  REPORT_PATH="$OUT_DIR/reports/${LABEL}-${INSTITUTIONS_SLUG}-report.html"
-
   if [ "$REPORT_EXIT" -eq 0 ]; then
+    # Read the actual path back out of this run's own log rather than
+    # reconstructing it from $INSTITUTIONS — generate_report.py names the
+    # file after whichever institutions actually succeeded, which can be a
+    # subset of $INSTITUTIONS if one had an expired/missing session (still
+    # exit 0 as long as at least one institution came through).
+    REPORT_PATH=$(grep "^Wrote report: " "$LOG_FILE" | tail -1 | sed 's/^Wrote report: //')
     "$UV_BIN" run python .claude/skills/finance-report/scripts/notify_email.py \
       --status success --label "$LABEL" --currency "$CURRENCY" \
       --out-dir "$OUT_DIR" --report-path "$REPORT_PATH"
