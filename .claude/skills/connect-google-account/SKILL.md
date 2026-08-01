@@ -1,6 +1,6 @@
 ---
 name: connect-google-account
-description: Connects/onboards a real Google account (Gmail, Calendar, Drive) to jb_gateway_mcp, or refreshes/reconnects one whose stored grant was revoked — runs the OAuth consent flow (`onboard-google`) and adds the matching grants to policy.yaml so the tools actually work end-to-end. Use when asked to connect, link, onboard, authorize, hook up, refresh, renew, or reconnect a Google/Gmail/Drive/Calendar account for jb_gateway_mcp.
+description: Connects/onboards a real Google account (Gmail, Calendar, Drive) to jb_gateway_mcp, or refreshes/reconnects one whose stored grant was revoked — runs the OAuth consent flow (`onboard-google`) and adds the matching grants to policy.yaml so the tools actually work end-to-end. Includes a status-check script (no browser needed) to see whether an account needs re-consent before a tool call fails. Use when asked to connect, link, onboard, authorize, hook up, refresh, renew, or reconnect a Google/Gmail/Drive/Calendar account for jb_gateway_mcp, or to check/troubleshoot whether a Google token is still valid.
 ---
 
 # Connecting a Google account to jb_gateway_mcp
@@ -24,27 +24,31 @@ Unlike bank consent (`connect-bank-account`, SCA-backed, expires every 90
 days by design), a Google refresh token doesn't expire on a schedule —
 `CredentialStore.get_valid_token` (`src/jb_gateway_mcp/credentials.py`)
 silently mints a new access token from it on every tool call, no human
-action ever needed in the common case. A manual **re-run of `onboard-google`
-is only needed** if the refresh token itself was revoked (user removed the
-app's access at myaccount.google.com/permissions, or it naturally expired
-after 6 months of no use, or `ran onboard-google` and it just needs first-time
-onboarding) — that surfaces as `NeedsReconsentError` from
-`src/jb_gateway_mcp/token_lifecycle.py` on a tool call, not as a background
-failure. To check without waiting for a tool call to fail:
+action ever needed in the common case. **This is already fully automatic
+— there is nothing to build or configure for it.** A manual **re-run of
+`onboard-google` is only needed** if the refresh token itself was revoked
+(user removed the app's access at myaccount.google.com/permissions, the
+OAuth client is still in Google's "Testing" publishing status — refresh
+tokens for test apps expire after 7 days regardless of use, a common
+surprise — or it naturally expired after 6 months of no use) — that
+surfaces as `NeedsReconsentError` from `src/jb_gateway_mcp/token_lifecycle.py`
+on a tool call, not as a background failure. **This one case genuinely
+cannot be automated** — Google requires a real browser login for it, by
+design, not a gap in this project.
+
+To check without waiting for a tool call to fail:
 
 ```bash
-uv run python -c "
-from jb_gateway_mcp.credentials import CredentialStore, CredentialNotFoundError
-from jb_gateway_mcp.token_lifecycle import NeedsReconsentError
-try:
-    CredentialStore().get_valid_token('google', '<account-email>')
-    print('token valid (or refreshed successfully)')
-except CredentialNotFoundError:
-    print('not connected — needs onboard-google')
-except NeedsReconsentError:
-    print('refresh token revoked — needs onboard-google again')
-"
+uv run python .claude/skills/connect-google-account/scripts/check_google_status.py
 ```
+
+Reports, per account (default: `jithesh83@gmail.com` — the account
+`notify_email.py` uses; pass `--account <email>` to check others): not
+connected / valid (refreshing the access token if it was near expiry,
+same as any real tool call would) / needs re-consent. It's a local-ish
+check (only talks to Google's token endpoint if a refresh is actually
+due) — safe to run anytime, including as a first step before assuming
+something's broken.
 
 If it says revoked/needs reconsent, **Steps 3–5 below are the fix** —
 same command as a first-time connect, for the same `--account`. It
