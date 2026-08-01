@@ -10,14 +10,17 @@ dependencies = [
     "google-api-python-client>=2.198.0",
     "google-auth>=2.56.2",
     "google-auth-oauthlib>=1.4.0",
+    "httpx>=0.28.1",
     "keyring>=25.7.0",
     "mcp>=2.0.0",
+    "pyjwt[crypto]>=2.10.1",
     "pyyaml>=6.0.3",
 ]
 
 [project.scripts]
 jb-gateway-mcp = "jb_gateway_mcp.server:main"
 onboard-google = "jb_gateway_mcp.cli.onboard_google:main"
+onboard-bank = "jb_gateway_mcp.cli.onboard_bank:main"
 uninstall-google = "jb_gateway_mcp.cli.uninstall:main"
 
 [build-system]

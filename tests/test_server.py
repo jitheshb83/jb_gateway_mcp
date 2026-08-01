@@ -8,7 +8,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 from pytest_mock import MockerFixture
 
 from jb_gateway_mcp import server
-from jb_gateway_mcp.adapters import google_calendar, google_drive, google_gmail
+from jb_gateway_mcp.adapters import enable_banking, google_calendar, google_drive, google_gmail
 from jb_gateway_mcp.policy import PolicyEngine
 
 
@@ -39,7 +39,7 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-ALL_ADAPTER_MODULES = (google_gmail, google_calendar, google_drive)
+ALL_ADAPTER_MODULES = (google_gmail, google_calendar, google_drive, enable_banking)
 
 # (wrapper function, expected router tool name, kwargs it should be called with)
 WRAPPER_CASES: list[tuple[Any, str, dict[str, Any]]] = [
@@ -83,6 +83,46 @@ WRAPPER_CASES: list[tuple[Any, str, dict[str, Any]]] = [
         server.drive_read_file,
         "drive.read_file",
         {"account": "me@example.com", "file_id": "f1"},
+    ),
+    (
+        server.bank_list_accounts,
+        "bank.list_accounts",
+        {"institution": "dnb"},
+    ),
+    (
+        server.bank_get_balance,
+        "bank.get_balance",
+        {"institution": "dnb", "account_uid": "acc-1"},
+    ),
+    (
+        server.bank_summarize_spending,
+        "bank.summarize_spending",
+        {
+            "institution": "dnb",
+            "account_uid": "acc-1",
+            "date_from": "2026-07-01",
+            "date_to": "2026-07-31",
+        },
+    ),
+    (
+        server.bank_list_transactions_summary,
+        "bank.list_transactions_summary",
+        {
+            "institution": "dnb",
+            "account_uid": "acc-1",
+            "date_from": "2026-07-01",
+            "date_to": "2026-07-31",
+        },
+    ),
+    (
+        server.bank_list_transactions_detailed,
+        "bank.list_transactions_detailed",
+        {
+            "institution": "dnb",
+            "account_uid": "acc-1",
+            "date_from": "2026-07-01",
+            "date_to": "2026-07-31",
+        },
     ),
 ]
 

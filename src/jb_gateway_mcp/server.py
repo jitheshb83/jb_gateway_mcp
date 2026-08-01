@@ -4,9 +4,10 @@ from typing import Any, cast
 
 from mcp.server.mcpserver import MCPServer
 
-from jb_gateway_mcp.adapters import google_calendar, google_drive, google_gmail
+from jb_gateway_mcp.adapters import enable_banking, google_calendar, google_drive, google_gmail
 from jb_gateway_mcp.audit import AuditLogger
 from jb_gateway_mcp.credentials import CredentialStore
+from jb_gateway_mcp.credentials_bank import BankCredentialStore
 from jb_gateway_mcp.policy import PolicyEngine
 from jb_gateway_mcp.router import ToolRouter
 
@@ -24,6 +25,7 @@ _audit_path = Path(
 _audit_path.parent.mkdir(parents=True, exist_ok=True)
 
 credential_store = CredentialStore()
+bank_credential_store = BankCredentialStore()
 policy = PolicyEngine(_policy_path)
 audit = AuditLogger(_audit_path)
 router = ToolRouter(policy, audit)
@@ -32,6 +34,10 @@ for _module in (google_gmail, google_calendar, google_drive):
     _handlers = _module.get_handlers(credential_store)
     for _spec in _module.TOOLS:
         router.register(_spec.name, _spec.scope, _handlers[_spec.name])
+
+_bank_handlers = enable_banking.get_handlers(bank_credential_store)
+for _spec in enable_banking.TOOLS:
+    router.register(_spec.name, _spec.scope, _bank_handlers[_spec.name])
 
 
 @mcp.tool()
@@ -97,6 +103,68 @@ def drive_read_file(account: str, file_id: str) -> dict[str, Any]:
     """Read metadata and text content of a Drive file."""
     params = {"account": account, "file_id": file_id}
     return cast(dict[str, Any], router.handle(CALLER_ID, "drive.read_file", params))
+
+
+@mcp.tool(name="bank.list_accounts")
+def bank_list_accounts(institution: str) -> list[dict[str, Any]]:
+    """List linked bank accounts for an institution (masked IBAN)."""
+    params = {"institution": institution}
+    return cast(list[dict[str, Any]], router.handle(CALLER_ID, "bank.list_accounts", params))
+
+
+@mcp.tool(name="bank.get_balance")
+def bank_get_balance(institution: str, account_uid: str) -> list[dict[str, Any]]:
+    """Get current/available balances for a bank account."""
+    params = {"institution": institution, "account_uid": account_uid}
+    return cast(list[dict[str, Any]], router.handle(CALLER_ID, "bank.get_balance", params))
+
+
+@mcp.tool(name="bank.summarize_spending")
+def bank_summarize_spending(
+    institution: str, account_uid: str, date_from: str, date_to: str
+) -> dict[str, Any]:
+    """Aggregate total in/out/net spending for a date range (no transaction detail)."""
+    params = {
+        "institution": institution,
+        "account_uid": account_uid,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
+    return cast(dict[str, Any], router.handle(CALLER_ID, "bank.summarize_spending", params))
+
+
+@mcp.tool(name="bank.list_transactions_summary")
+def bank_list_transactions_summary(
+    institution: str, account_uid: str, date_from: str, date_to: str
+) -> list[dict[str, Any]]:
+    """List transactions for a date range: date, amount, currency only."""
+    params = {
+        "institution": institution,
+        "account_uid": account_uid,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
+    return cast(
+        list[dict[str, Any]],
+        router.handle(CALLER_ID, "bank.list_transactions_summary", params),
+    )
+
+
+@mcp.tool(name="bank.list_transactions_detailed")
+def bank_list_transactions_detailed(
+    institution: str, account_uid: str, date_from: str, date_to: str
+) -> list[dict[str, Any]]:
+    """List transactions including counterparty name/description (IBANs still masked)."""
+    params = {
+        "institution": institution,
+        "account_uid": account_uid,
+        "date_from": date_from,
+        "date_to": date_to,
+    }
+    return cast(
+        list[dict[str, Any]],
+        router.handle(CALLER_ID, "bank.list_transactions_detailed", params),
+    )
 
 
 def main() -> None:
