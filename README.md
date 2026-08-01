@@ -1,44 +1,106 @@
 # jb_gateway_mcp
 
-A local MCP server that acts as a credential-holding gateway to Google APIs
-(Gmail, Calendar, Drive) and, via Enable Banking, read-only bank account data
-(DNB, Nordea, Revolut, ...). AI agents call MCP tools; the server holds every
-credential and decides — via a deny-by-default policy — what each caller is
-allowed to do. Agents never see a token, password, API key, or raw account
-number.
+A local **MCP (Model Context Protocol)** server that acts as a
+credential-holding gateway to Google APIs (Gmail, Calendar, Drive) and, via
+Enable Banking, read-only bank account data (DNB, Nordea, Revolut, ...).
+
+MCP is the protocol AI clients like Claude Desktop/Code use to discover and
+call external tools. This repo *is* one of those tools, running locally on
+your machine: your MCP client launches it as a subprocess and calls its
+tools over stdio. The server holds every credential and decides — via a
+deny-by-default policy — what each caller is allowed to do. Agents never
+see a token, password, API key, or raw account number.
 
 Full design/architecture: [DESIGN.md](DESIGN.md).
 
-## Skills & plugins (recommended if you're using Claude Code)
+**Contents:**
+[Quick start](#quick-start) ·
+[Prerequisites](#prerequisites) ·
+[1. Install the server](#1-install-the-server) ·
+[2. Connect a Google account](#2-connect-a-google-account) ·
+[3. Grant policy access (Google tools)](#3-grant-policy-access-google-tools) ·
+[4. Run it / test it](#4-run-it--test-it) ·
+[5. Connect an MCP client](#5-connect-an-mcp-client) ·
+[6. Connect a bank account](#6-connect-a-bank-account-dnb-nordea-revolut-) ·
+[Claude Code skills & plugins (optional)](#claude-code-skills--plugins-optional) ·
+[Environment variables](#environment-variables) ·
+[Tool catalog](#tool-catalog) ·
+[Network & ports](#network--ports) ·
+[Troubleshooting](#troubleshooting) ·
+[Security notes](#security-notes) ·
+[Uninstalling](#uninstalling)
 
-This repo ships one project skill directly, in `.claude/skills/`:
+## Quick start
 
-- **`run-jb-gateway-mcp`** — launches the server and drives a real MCP
-  session against it end-to-end (handshake, tool discovery, `ping`,
-  policy-gated tool calls, audit log integrity check). Ask e.g. "run
-  jb_gateway_mcp" or "smoke-test the gateway." This one stays here since
-  it's a server-maintainer concern, not something plugin users need.
+The fastest way to confirm the server actually runs, before wiring up any
+real Google or bank account:
 
-The account-connection and finance-report skills — plus domain subagents
-— are distributed separately as Claude Code plugins, so they can be
-installed standalone without cloning this repo:
-[jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins)
-(`jb-finance-mcp-plugin`: bank onboarding + finance reports;
-`jb-google-notify-plugin`: Google onboarding + report notifications via
-Gmail). Both depend on this server being installed standalone first — see
-"Standalone install" below — and walk through app/consent registration,
-running the onboarding CLI, and adding the right `policy.yaml` grants,
-verifying the result against live data before calling it done.
+```bash
+git clone https://github.com/jitheshb83/jb_gateway_mcp.git
+cd jb_gateway_mcp
+uv sync                              # installs deps into .venv (needs uv, see Prerequisites)
+uv run pytest -q                     # 115 tests, incl. a real stdio round-trip
+```
 
-The rest of this README is the manual reference for each step: useful if
-you're not driving this through Claude Code, or want to understand exactly
-what the skills automate.
+That's it for a sanity check — the repo ships its own tracked
+`policy.yaml` and `.mcp.json`, so if you're using Claude Code, opening this
+folder is enough for it to pick the server up automatically (see
+[§5](#5-connect-an-mcp-client)). Nothing here can read your email, calendar,
+Drive, or bank data yet — that needs the account-onboarding steps below
+([§2](#2-connect-a-google-account), [§6](#6-connect-a-bank-account-dnb-nordea-revolut-))
+plus explicit grants in `policy.yaml` ([§3](#3-grant-policy-access-google-tools)).
 
-## Standalone install (for plugin users, or any MCP client)
+**Prefer prompts over copy-pasting commands?** Run the interactive
+installer instead — it walks through `uv sync`, Google onboarding, and bank
+onboarding with y/n prompts, then runs the smoke test for you:
 
-If you just want the server itself on `PATH` — e.g. to use the plugins
-above, or to point a non-Claude-Code MCP client at it without cloning this
-repo — install it as a tool instead of `uv sync`-ing a clone:
+```bash
+./scripts/install.sh
+```
+
+It's just a convenience wrapper around §1–§6 below and is safe to re-run;
+skip any step you're not ready for. It deliberately never edits
+`policy.yaml` for you — see [§3](#3-grant-policy-access-google-tools) and
+[§6c](#6c-grant-policy-access), that's still a manual, deliberate step.
+
+## Prerequisites
+
+Always required:
+
+- Python 3.13 (managed automatically by `uv`)
+- [`uv`](https://docs.astral.sh/uv/)
+
+Only if you want the corresponding tools:
+
+- **Google tools** (`gmail.*`, `calendar.*`, `drive.*`) — a Google account
+  you're willing to grant read-only (or send/write) API access to, and a
+  Google Cloud project to create OAuth credentials in.
+- **Bank tools** (`bank.*`) — a free [Enable Banking](https://enablebanking.com/)
+  account and the bank(s) you want to connect (DNB, Nordea, Revolut, ...
+  currently — see [§6](#6-connect-a-bank-account-dnb-nordea-revolut-)).
+
+## 1. Install the server
+
+Two ways to install, depending on what you're doing:
+
+### Option A — clone + `uv sync` (development, or building the Claude Code plugins)
+
+```bash
+git clone https://github.com/jitheshb83/jb_gateway_mcp.git
+cd jb_gateway_mcp
+uv sync
+```
+
+Uses this repo's own tracked `policy.yaml` and `.mcp.json` — the path most
+of this README (and the code snippets below) assumes. From here you can
+either follow §2–§6 by hand, or run `./scripts/install.sh` for an
+interactive walkthrough of the same steps (see [Quick start](#quick-start)).
+
+### Option B — `uv tool install` (just want the server on `PATH`)
+
+Use this if you're only installing to use the
+[Claude Code plugins](#claude-code-skills--plugins-optional) below, or to
+point a non-Claude-Code MCP client at the server without cloning this repo:
 
 ```bash
 uv tool install --python 3.13 git+https://github.com/jitheshb83/jb_gateway_mcp.git
@@ -53,48 +115,33 @@ mkdir -p ~/.jb_gateway_mcp
 echo 'callers: {}' > ~/.jb_gateway_mcp/policy.yaml
 ```
 
-That's a valid, safe, deny-everything starting point (see §4 below for the
-shape once you're ready to add grants) — `~/.jb_gateway_mcp/policy.yaml`
-is the default `JB_GATEWAY_POLICY_FILE` path a standalone install resolves
-to automatically, unlike the dev-clone path below where it's the repo's
-own tracked `policy.yaml`.
+That's a valid, safe, deny-everything starting point (see
+[§3](#3-grant-policy-access-google-tools) below for the shape once you're
+ready to add grants) — `~/.jb_gateway_mcp/policy.yaml` is the default
+`JB_GATEWAY_POLICY_FILE` path a standalone install resolves to
+automatically, unlike Option A where it's the repo's own tracked
+`policy.yaml`.
 
-The rest of this README (steps 1–7) still applies for OAuth client setup,
+The rest of this README (§2–§6) still applies for OAuth client setup,
 onboarding, and `policy.yaml` grants — those are one-time, per-account
 steps independent of how the server itself got installed — **with one
-difference**: steps 3 and 7b
-below show `uv run onboard-google ...` / `uv run onboard-bank ...` run
-from inside a cloned repo (the `uv sync` dev path). With a standalone
-install, drop both the `cd` and the `uv run` prefix — just
-`onboard-google ...` / `onboard-bank ...` directly, since they're already
-on `PATH`. If you're developing on this repo itself, `uv sync` + `uv run`
-(as in "Install" below) is the right mode instead.
+difference**: §2 and §6b below show `uv run onboard-google ...` /
+`uv run onboard-bank ...` run from inside a cloned repo (Option A). With a
+standalone install (Option B), drop both the `cd` and the `uv run` prefix
+— just `onboard-google ...` / `onboard-bank ...` directly, since they're
+already on `PATH`.
 
-**Already onboarded accounts via a dev-clone install?** You don't need to
-re-run onboarding for the standalone path — tokens/sessions live in the OS
+**Already onboarded accounts via Option A?** You don't need to re-run
+onboarding for the standalone path — tokens/sessions live in the OS
 keychain (`keyring`), not tied to which install method wrote them. Only
 `policy.yaml` is per-install (each has its own default location), so the
 one thing a switch between install modes always needs is its own grants.
 
-## Prerequisites
+## 2. Connect a Google account
 
-- Python 3.13 (managed automatically by `uv`)
-- [`uv`](https://docs.astral.sh/uv/)
-- For Google tools: a Google account you're willing to grant read-only (or
-  send/write) API access to, and a Google Cloud project to create OAuth
-  credentials in
-- For bank tools: a free [Enable Banking](https://enablebanking.com/)
-  account and the bank(s) you want to connect (DNB, Nordea, Revolut, ...
-  currently — see §7)
+Skip this section if you only need bank tools.
 
-## 1. Install
-
-```bash
-cd jb_gateway_mcp
-uv sync
-```
-
-## 2. Create a Google OAuth client (one-time, in Google Cloud Console)
+### 2a. Create a Google OAuth client (one-time, in Google Cloud Console)
 
 The gateway needs its own OAuth client to run the consent flow. You do this
 once, in your own Google account — nothing here can do it for you:
@@ -114,7 +161,7 @@ once, in your own Google account — nothing here can do it for you:
    `.gitignore` here already blocks `client_secret*.json` as a backstop, but
    don't rely on that — don't put it in the repo directory at all.
 
-## 3. Onboard a Google account
+### 2b. Onboard a Google account
 
 This is a one-time, human-run step per Google account. It opens a browser
 for you to log in and grant consent; the resulting token is written to your
@@ -145,7 +192,7 @@ On success it prints the account and granted scopes — never a token value.
 Re-run this any time a refresh token is revoked (the server will raise a
 clear re-consent error if that happens mid-use).
 
-## 4. Grant policy access
+## 3. Grant policy access (Google tools)
 
 The server ships with `policy.yaml` denying everything by default — no
 caller can use any tool until you explicitly grant it. Edit `policy.yaml`:
@@ -175,9 +222,9 @@ callers:
 `local` is the default caller identity for v1 (single-user, local stdio
 deployment — see [DESIGN.md §7](DESIGN.md)). Override it with the
 `JB_GATEWAY_CALLER_ID` environment variable if you want distinct policies
-per launching client (see §6 below).
+per launching client (see [§5](#5-connect-an-mcp-client) below).
 
-## 5. Run it standalone (quick manual test)
+## 4. Run it / test it
 
 The server is started via [`scripts/start.sh`](scripts/start.sh) — a thin
 wrapper that resolves the project root, checks `uv` and `policy.yaml` are
@@ -212,7 +259,7 @@ project skill's smoke test:
 uv run python .claude/skills/run-jb-gateway-mcp/scripts/smoke_test.py
 ```
 
-## 6. Connect a real client
+## 5. Connect an MCP client
 
 Every client config below launches [`scripts/start.sh`](scripts/start.sh)
 with `JB_GATEWAY_CALLER_ID=local` — the same caller id already granted
@@ -247,16 +294,16 @@ Most MCP clients use the same `mcpServers` JSON shape. See
 [`config/mcp_client_generic.example.json`](config/mcp_client_generic.example.json)
 and that client's own docs for where its config file lives.
 
-## 7. Connect a bank account (DNB, Nordea, Revolut, ...)
+## 6. Connect a bank account (DNB, Nordea, Revolut, ...)
 
-Independent of the Google setup above and §6 — do this before, after, or
-without ever doing them; it's a separate provider with its own app
-registration and onboarding CLI. `bank.*` tools are backed by **Enable
-Banking**, a licensed AISP aggregator (direct bank PSD2 APIs require being a
-regulated TPP with an eIDAS certificate — not viable for a personal
-project).
+Independent of the Google setup above and [§5](#5-connect-an-mcp-client) —
+do this before, after, or without ever doing them; it's a separate provider
+with its own app registration and onboarding CLI. `bank.*` tools are backed
+by **Enable Banking**, a licensed AISP aggregator (direct bank PSD2 APIs
+require being a regulated TPP with an eIDAS certificate — not viable for a
+personal project).
 
-### 7a. Register an Enable Banking application (one-time, in their Control Panel)
+### 6a. Register an Enable Banking application (one-time, in their Control Panel)
 
 1. Sign in at [enablebanking.com/sign-in/](https://enablebanking.com/sign-in/)
    (email + magic link — no business registration needed).
@@ -281,7 +328,7 @@ project).
    institution** you plan to connect (DNB, Nordea, Revolut, ...) — Restricted
    mode only ever serves accounts that have gone through this linking step.
 
-### 7b. Onboard each institution
+### 6b. Onboard each institution
 
 ```bash
 uv run onboard-bank --institution dnb \
@@ -314,7 +361,7 @@ Supported institution aliases (see
 `dnb`, `nordea`, `revolut` — all currently Norway (`NO`). Adding a new one is
 a two-line code change.
 
-### 7c. Grant policy access
+### 6c. Grant policy access
 
 ```yaml
 callers:
@@ -340,7 +387,7 @@ holder's own, and any counterparty's — is masked to its last 4 digits).
 `bank.list_transactions_detailed` is the only tool that adds
 counterparty/description text, and it needs its own explicit grant.
 
-### 7d. Verify
+### 6d. Verify
 
 The `connect-bank-account` skill's status-check script (in the
 [jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins)
@@ -356,12 +403,41 @@ uv run python skills/connect-bank-account/scripts/check_bank_status.py --live
 its README for the one-time `uv sync` setup; the Claude Code plugin
 install itself doesn't give you a directory to `cd` into by hand).
 
+## Claude Code skills & plugins (optional)
+
+Skip this section entirely if you're not using Claude Code, or if the
+manual steps above already got you what you need.
+
+This repo ships one project skill directly, in `.claude/skills/`:
+
+- **`run-jb-gateway-mcp`** — launches the server and drives a real MCP
+  session against it end-to-end (handshake, tool discovery, `ping`,
+  policy-gated tool calls, audit log integrity check). Ask e.g. "run
+  jb_gateway_mcp" or "smoke-test the gateway." This one stays here since
+  it's a server-maintainer concern, not something plugin users need.
+
+The account-connection and finance-report skills — plus domain subagents
+— are distributed separately as Claude Code plugins, so they can be
+installed standalone without cloning this repo:
+[jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins)
+(`jb-finance-mcp-plugin`: bank onboarding + finance reports;
+`jb-google-notify-plugin`: Google onboarding + report notifications via
+Gmail). Both depend on this server being installed standalone first — see
+[§1 Option B](#1-install-the-server) above — and walk through app/consent
+registration, running the onboarding CLI, and adding the right
+`policy.yaml` grants, verifying the result against live data before
+calling it done.
+
+Everything above this section is the manual reference for each step:
+useful if you're not driving this through Claude Code, or want to
+understand exactly what the skills automate.
+
 ## Environment variables
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `JB_GATEWAY_CALLER_ID` | `local` | Identity used for every policy check and audit entry in this process. Must match a `callers:` key in `policy.yaml` to be granted anything. |
-| `JB_GATEWAY_POLICY_FILE` | `~/.jb_gateway_mcp/policy.yaml` | Path to the policy file. **Must exist and be valid YAML — the server fails to start if it's missing**, even just to serve `ping`, since policy loads at startup. This repo's own `.mcp.json`/example client configs set it explicitly to this repo's tracked `policy.yaml`; a standalone install (see above) needs you to create the default path yourself (`mkdir -p ~/.jb_gateway_mcp && echo 'callers: {}' > ~/.jb_gateway_mcp/policy.yaml` is a valid, safe, deny-everything starting point) or point this at wherever you keep your own. |
+| `JB_GATEWAY_POLICY_FILE` | `~/.jb_gateway_mcp/policy.yaml` | Path to the policy file. **Must exist and be valid YAML — the server fails to start if it's missing**, even just to serve `ping`, since policy loads at startup. This repo's own `.mcp.json`/example client configs set it explicitly to this repo's tracked `policy.yaml` (Option A); a standalone install (Option B, see [§1](#1-install-the-server) above) needs you to create the default path yourself (`mkdir -p ~/.jb_gateway_mcp && echo 'callers: {}' > ~/.jb_gateway_mcp/policy.yaml` is a valid, safe, deny-everything starting point) or point this at wherever you keep your own. |
 | `JB_GATEWAY_AUDIT_LOG` | `~/.jb_gateway_mcp/audit.jsonl` | Path to the audit log (JSON Lines, one entry per tool call, secrets redacted). Parent directory is created automatically. |
 
 ## Tool catalog
@@ -426,7 +502,7 @@ before running `onboard-google`.
   `onboard-google` for that account.
 - **`403 Forbidden` from `onboard-bank`** — the Enable Banking application
   (or that specific institution) hasn't been through **"Activate by linking
-  accounts"** in their Control Panel yet — see §7a step 4.
+  accounts"** in their Control Panel yet — see [§6a step 4](#6a-register-an-enable-banking-application-one-time-in-their-control-panel).
 - **`multiple ASPSPs matched institution=...`** from `onboard-bank` — the
   institution name is genuinely ambiguous in that country (e.g. "DNB" vs.
   "DNB Corporate Mastercard"); narrow `_INSTITUTION_NAME_HINT` in
