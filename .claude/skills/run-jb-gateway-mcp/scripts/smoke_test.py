@@ -48,10 +48,18 @@ async def main() -> int:
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="jb_gateway_mcp_smoketest_"))
     audit_path = tmp_dir / "audit.jsonl"
+    # JB_GATEWAY_POLICY_FILE must be passed explicitly too: its default is
+    # ~/.jb_gateway_mcp/policy.yaml (which this machine may not have set up
+    # yet), and the subprocess only inherits an allowlisted env subset, not
+    # this process's full environment — same reasoning as AUDIT_LOG above.
     params = StdioServerParameters(
         command=str(START_SCRIPT),
         args=[],
-        env={"JB_GATEWAY_AUDIT_LOG": str(audit_path), "JB_GATEWAY_CALLER_ID": CALLER_ID},
+        env={
+            "JB_GATEWAY_AUDIT_LOG": str(audit_path),
+            "JB_GATEWAY_CALLER_ID": CALLER_ID,
+            "JB_GATEWAY_POLICY_FILE": str(REPO_ROOT / "policy.yaml"),
+        },
     )
 
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:

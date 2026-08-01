@@ -18,7 +18,9 @@ mcp = MCPServer("jb-gateway-mcp")
 # (see DESIGN.md section 7). Read once at startup, used for every tool call.
 CALLER_ID = os.environ.get("JB_GATEWAY_CALLER_ID", "local")
 
-_policy_path = Path(os.environ.get("JB_GATEWAY_POLICY_FILE", "policy.yaml"))
+_policy_path = Path(
+    os.environ.get("JB_GATEWAY_POLICY_FILE", str(Path.home() / ".jb_gateway_mcp" / "policy.yaml"))
+)
 _audit_path = Path(
     os.environ.get("JB_GATEWAY_AUDIT_LOG", str(Path.home() / ".jb_gateway_mcp" / "audit.jsonl"))
 )

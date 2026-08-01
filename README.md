@@ -7,39 +7,68 @@ credential and decides — via a deny-by-default policy — what each caller is
 allowed to do. Agents never see a token, password, API key, or raw account
 number.
 
-Full design/architecture: [DESIGN.md](DESIGN.md) / [DESIGN.pdf](DESIGN.pdf).
+Full design/architecture: [DESIGN.md](DESIGN.md).
 
-## Skills (recommended if you're using Claude Code)
+## Skills & plugins (recommended if you're using Claude Code)
 
-Everything from "Install" onward, plus day-to-day usage, can be driven
-interactively instead of by hand — four skills ship in `.claude/skills/`:
+This repo ships one project skill directly, in `.claude/skills/`:
 
-- **`connect-google-account`** — connects or refreshes a Google account
-  (Gmail/Calendar/Drive). Just ask, e.g. "connect my Google account to
-  jb_gateway_mcp" or "refresh my Google credentials." Includes a
-  status-check script to see whether an account needs re-consent without
-  waiting for a tool call to fail.
-- **`connect-bank-account`** — connects or refreshes a bank account (DNB,
-  Nordea, Revolut, or any other Enable Banking-supported institution). Just
-  ask, e.g. "connect my DNB account" or "refresh my bank credentials."
 - **`run-jb-gateway-mcp`** — launches the server and drives a real MCP
   session against it end-to-end (handshake, tool discovery, `ping`,
   policy-gated tool calls, audit log integrity check). Ask e.g. "run
-  jb_gateway_mcp" or "smoke-test the gateway."
-- **`finance-report`** — generates a local HTML financial report (income/
-  expense trends, category breakdown, a next-month forecast) from linked
-  bank accounts, cached under `~/Documents/MyFinance/` for reuse, with an
-  optional unattended monthly automation (`launchd` + email notification).
-  Ask e.g. "generate my finance report for July" or "set up the monthly
-  report automation."
+  jb_gateway_mcp" or "smoke-test the gateway." This one stays here since
+  it's a server-maintainer concern, not something plugin users need.
 
-The two `connect-*` skills walk through the steps documented below —
-app/consent registration where a browser is unavoidable, running the
-onboarding CLI, adding the right `policy.yaml` grants — and verify the
-result against live data before calling it done. The rest of this README
-is the manual reference for each step: useful if you're not driving this
-through Claude Code, or want to understand exactly what the skills
-automate.
+The account-connection and finance-report skills — plus domain subagents
+— are distributed separately as Claude Code plugins, so they can be
+installed standalone without cloning this repo:
+[jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins)
+(`jb-finance-mcp-plugin`: bank onboarding + finance reports;
+`jb-google-notify-plugin`: Google onboarding + report notifications via
+Gmail). Both depend on this server being installed standalone first — see
+"Standalone install" below — and walk through app/consent registration,
+running the onboarding CLI, and adding the right `policy.yaml` grants,
+verifying the result against live data before calling it done.
+
+The rest of this README is the manual reference for each step: useful if
+you're not driving this through Claude Code, or want to understand exactly
+what the skills automate.
+
+## Standalone install (for plugin users, or any MCP client)
+
+If you just want the server itself on `PATH` — e.g. to use the plugins
+above, or to point a non-Claude-Code MCP client at it without cloning this
+repo — install it as a tool instead of `uv sync`-ing a clone:
+
+```bash
+uv tool install --python 3.13 git+https://github.com/jitheshb83/jb_gateway_mcp.git
+```
+
+This puts `jb-gateway-mcp`, `onboard-google`, `onboard-bank`, and
+`uninstall-google` on your `PATH`. Also create a policy file — the server
+won't start without one, even to serve `ping`:
+
+```bash
+mkdir -p ~/.jb_gateway_mcp
+echo 'callers: {}' > ~/.jb_gateway_mcp/policy.yaml
+```
+
+That's a valid, safe, deny-everything starting point (see §4 below for the
+shape once you're ready to add grants) — `~/.jb_gateway_mcp/policy.yaml`
+is the default `JB_GATEWAY_POLICY_FILE` path a standalone install resolves
+to automatically, unlike the dev-clone path below where it's the repo's
+own tracked `policy.yaml`.
+
+The rest of this README (steps 1–7) still applies for OAuth client setup,
+onboarding, and `policy.yaml` grants — those are one-time, per-account
+steps independent of how the server itself got installed — **with one
+difference**: steps 3 and 7b
+below show `uv run onboard-google ...` / `uv run onboard-bank ...` run
+from inside a cloned repo (the `uv sync` dev path). With a standalone
+install, drop both the `cd` and the `uv run` prefix — just
+`onboard-google ...` / `onboard-bank ...` directly, since they're already
+on `PATH`. If you're developing on this repo itself, `uv sync` + `uv run`
+(as in "Install" below) is the right mode instead.
 
 ## Prerequisites
 
@@ -169,7 +198,7 @@ The stdio round-trip test in `tests/test_server.py` spawns the real server
 process and calls `ping` over a real MCP session — the same mechanism any
 client uses.
 
-For a fuller live check (handshake, all 8 tools discovered, `ping`, policy
+For a fuller live check (handshake, all 13 tools discovered, `ping`, policy
 enforcement on the Google tools, and an audit-log integrity check), run the
 project skill's smoke test:
 
@@ -307,19 +336,26 @@ counterparty/description text, and it needs its own explicit grant.
 
 ### 7d. Verify
 
+The `connect-bank-account` skill's status-check script (in the
+[jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins)
+`jb-finance-mcp-plugin`) reports connection status (or "not
+connected"/"EXPIRED") and a live balance check for every onboarded
+institution:
+
 ```bash
-uv run python .claude/skills/connect-bank-account/scripts/check_bank_status.py --live
+uv run python skills/connect-bank-account/scripts/check_bank_status.py --live
 ```
 
-Reports connection status (or "not connected"/"EXPIRED") and a live balance
-check for every onboarded institution.
+(run from a clone of that plugin's repo, at its own root directory — see
+its README for the one-time `uv sync` setup; the Claude Code plugin
+install itself doesn't give you a directory to `cd` into by hand).
 
 ## Environment variables
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `JB_GATEWAY_CALLER_ID` | `local` | Identity used for every policy check and audit entry in this process. Must match a `callers:` key in `policy.yaml` to be granted anything. |
-| `JB_GATEWAY_POLICY_FILE` | `policy.yaml` (relative to cwd) | Path to the policy file. |
+| `JB_GATEWAY_POLICY_FILE` | `~/.jb_gateway_mcp/policy.yaml` | Path to the policy file. **Must exist and be valid YAML — the server fails to start if it's missing**, even just to serve `ping`, since policy loads at startup. This repo's own `.mcp.json`/example client configs set it explicitly to this repo's tracked `policy.yaml`; a standalone install (see above) needs you to create the default path yourself (`mkdir -p ~/.jb_gateway_mcp && echo 'callers: {}' > ~/.jb_gateway_mcp/policy.yaml` is a valid, safe, deny-everything starting point) or point this at wherever you keep your own. |
 | `JB_GATEWAY_AUDIT_LOG` | `~/.jb_gateway_mcp/audit.jsonl` | Path to the audit log (JSON Lines, one entry per tool call, secrets redacted). Parent directory is created automatically. |
 
 ## Tool catalog

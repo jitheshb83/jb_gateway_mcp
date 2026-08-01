@@ -221,15 +221,13 @@ config/
     claude_desktop_config.example.json
     mcp_client_generic.example.json
 .claude/skills/
-    connect-google-account/   # onboard/refresh a Google account + policy.yaml grants
-        scripts/check_google_status.py
-    connect-bank-account/     # onboard/refresh a bank institution (90-day consent)
-        scripts/check_bank_status.py
     run-jb-gateway-mcp/       # project skill: spawn + drive a real MCP session to verify the server
         scripts/smoke_test.py
-    finance-report/           # local HTML financial reports + optional monthly launchd automation
-        scripts/generate_report.py, categories.py, forecast.py, run_monthly.sh, notify_email.py
-        launchd/com.jbgatewaymcp.financereport.monthly.plist
+        # connect-google-account, connect-bank-account, and finance-report
+        # moved out to https://github.com/jitheshb83/jb_claude_pluggins as
+        # separate Claude Code plugins (jb-finance-mcp-plugin,
+        # jb-google-notify-plugin) — this server stays a plain standalone
+        # MCP server with no plugin-specific code.
 .mcp.json                  # active Claude Code project config
 policy.yaml
 pyproject.toml
