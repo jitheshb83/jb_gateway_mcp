@@ -70,6 +70,12 @@ install, drop both the `cd` and the `uv run` prefix — just
 on `PATH`. If you're developing on this repo itself, `uv sync` + `uv run`
 (as in "Install" below) is the right mode instead.
 
+**Already onboarded accounts via a dev-clone install?** You don't need to
+re-run onboarding for the standalone path — tokens/sessions live in the OS
+keychain (`keyring`), not tied to which install method wrote them. Only
+`policy.yaml` is per-install (each has its own default location), so the
+one thing a switch between install modes always needs is its own grants.
+
 ## Prerequisites
 
 - Python 3.13 (managed automatically by `uv`)
