@@ -1,5 +1,6 @@
 """Single dispatch point for tool calls: policy check, then handler, then audit."""
 
+import copy
 import time
 from collections.abc import Callable
 from typing import Any
@@ -19,7 +20,9 @@ class ToolRouter:
     default; only meant for read-only, idempotent tools backed by a scarce
     upstream quota, never for anything that sends/writes. A cache hit is
     still audit-logged (outcome "cached") — every call is still tracked,
-    it just didn't reach the handler.
+    it just didn't reach the handler. Each hit returns a deep copy, so a
+    caller mutating "its" result in place can never corrupt what the next
+    caller sees during the same TTL window.
     """
 
     def __init__(self, policy: PolicyEngine, audit: AuditLogger) -> None:
@@ -64,7 +67,12 @@ class ToolRouter:
                 expires_at, cached_result = cached
                 if time.monotonic() < expires_at:
                     self._audit.log(caller_id, tool_name, params, outcome="cached")
-                    return cached_result
+                    # Deep copy out: the cache stores one shared object across
+                    # every hit during its TTL, so a caller (or the MCP
+                    # framework's own serialization) mutating its "own"
+                    # result in place must never corrupt what later callers
+                    # see.
+                    return copy.deepcopy(cached_result)
                 del self._cache[cache_key]
 
         try:
@@ -74,7 +82,11 @@ class ToolRouter:
             raise
 
         if cache_key is not None and ttl is not None:
-            self._cache[cache_key] = (time.monotonic() + ttl, result)
+            # Deep copy in too: the very first (fresh, uncached) call would
+            # otherwise hand its caller the exact same object this stores,
+            # so that caller mutating "its" result in place would corrupt
+            # the cache before anyone ever reads a copy of it back out.
+            self._cache[cache_key] = (time.monotonic() + ttl, copy.deepcopy(result))
 
         self._audit.log(caller_id, tool_name, params, outcome="success")
         return result

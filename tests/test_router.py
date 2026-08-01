@@ -160,6 +160,22 @@ def test_cacheable_tool_error_is_not_cached(tmp_path: Path) -> None:
     assert [e["outcome"] for e in entries] == ["error", "error"]
 
 
+def test_cache_hit_returns_a_copy_mutation_safe(tmp_path: Path) -> None:
+    """A caller mutating its "own" cached result in place must never
+    corrupt what the next caller sees during the same TTL window."""
+    router, _ = _make_router(tmp_path)
+    handler = MagicMock(return_value={"messages": ["one"]})
+    router.register("gmail.list_messages", "gmail.readonly", handler, cache_ttl_seconds=60.0)
+
+    first = router.handle("agent-x", "gmail.list_messages", {"query": "is:unread"})
+    first["messages"].append("mutated by caller")
+
+    second = router.handle("agent-x", "gmail.list_messages", {"query": "is:unread"})
+
+    assert second == {"messages": ["one"]}
+    assert first != second  # confirms it was a real, independent copy
+
+
 def test_denied_call_never_reaches_or_populates_cache(tmp_path: Path) -> None:
     router, log_path = _make_router(tmp_path)
     handler = MagicMock(return_value={"ok": True})

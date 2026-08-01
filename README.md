@@ -428,8 +428,11 @@ before running `onboard-google`.
 - **`NeedsReconsentError` / "consent ... expired" from a bank tool call** —
   the 90-day bank consent lapsed; re-run `onboard-bank --institution
   <alias>`.
-- **Audit log** — every call (allowed, denied, or errored) is recorded at
-  `JB_GATEWAY_AUDIT_LOG`. Tokens/secrets are redacted before writing.
+- **Audit log** — every call (`success`, `cached`, `denied`, or `error`) is
+  recorded at `JB_GATEWAY_AUDIT_LOG`. Tokens/secrets are redacted before
+  writing. `cached` means a `bank.*` tool returned a result from the
+  in-memory cache instead of reaching the live API — see "Bank tool result
+  caching" above.
 
 ## Security notes
 

@@ -113,6 +113,31 @@ sequenceDiagram
     Router-->>Agent: result
 ```
 
+## Flow 1b — Tool call served from cache (bank.* tools only)
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant Router as Tool Router
+    participant Policy as Policy Engine
+    participant Cache as In-Memory Cache
+    participant Audit as Audit Logger
+
+    Agent->>Router: call tool "bank.get_balance"(institution, account_uid)
+    Router->>Policy: is caller "agent-x" allowed<br/>tool "bank.get_balance"?
+    Policy-->>Router: allow (scope: bank.readonly)
+    Router->>Cache: lookup(tool, params)
+    Cache-->>Router: hit (fetched 12min ago, TTL 60min)
+    Router->>Audit: log(caller, tool, params, outcome=cached)
+    Router-->>Agent: result (adapter/API never reached)
+```
+
+Same policy check either way — a cache hit skips the adapter, not
+authorization. The cache lives in the router's process memory only
+(`ToolSpec.cache_ttl_seconds`, opt-in per tool); nothing here is written
+to disk or survives a server restart. See README.md "Bank tool result
+caching".
+
 ## Flow 2 — Tool call denied by policy
 
 ```mermaid
