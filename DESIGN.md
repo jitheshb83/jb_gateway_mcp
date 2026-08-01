@@ -199,20 +199,17 @@ src/jb_gateway_mcp/
     server.py              # MCP server entrypoint, stdio transport, tool registration
     router.py               # dispatches tool calls -> policy check -> adapter
     policy.py                # loads policy.yaml, allow/deny decisions
-    credentials.py            # keyring-backed store: get/put/refresh (Google)
-    credentials_bank.py        # keyring-backed store: app credential + per-institution session (bank)
-    token_lifecycle.py         # refresh logic, NeedsReconsentError (Google)
+    credentials.py            # keyring-backed store: get/put/refresh
+    token_lifecycle.py         # refresh logic, NeedsReconsentError
     audit.py                    # structured JSONL logger, redaction
     adapters/
         base.py                   # shared ToolSpec + Google API client builder
         google_gmail.py             # list/read/send
         google_calendar.py          # list/create events
         google_drive.py             # list/read files
-        enable_banking.py           # bank.* tools: accounts/balance/transactions (read-only)
     cli/
         onboard_google.py          # OAuth consent flow entrypoint
-        onboard_bank.py             # Enable Banking consent flow entrypoint (SCA, 90-day)
-        uninstall.py                # revoke grant + delete keychain token, per account (Google)
+        uninstall.py                # revoke grant + delete keychain token, per account
 tests/
     (mirrors src/ layout)
 scripts/
@@ -221,15 +218,7 @@ config/
     claude_desktop_config.example.json
     mcp_client_generic.example.json
 .claude/skills/
-    connect-google-account/   # onboard/refresh a Google account + policy.yaml grants
-        scripts/check_google_status.py
-    connect-bank-account/     # onboard/refresh a bank institution (90-day consent)
-        scripts/check_bank_status.py
     run-jb-gateway-mcp/       # project skill: spawn + drive a real MCP session to verify the server
-        scripts/smoke_test.py
-    finance-report/           # local HTML financial reports + optional monthly launchd automation
-        scripts/generate_report.py, categories.py, forecast.py, run_monthly.sh, notify_email.py
-        launchd/com.jbgatewaymcp.financereport.monthly.plist
 .mcp.json                  # active Claude Code project config
 policy.yaml
 pyproject.toml
