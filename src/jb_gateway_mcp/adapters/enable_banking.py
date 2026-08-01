@@ -40,7 +40,7 @@ _MAX_TRANSACTION_PAGES = 5
 # short-lived cache absorbs repeated/near-duplicate calls — e.g. an agent
 # asked a few related questions in one conversation — without the caller
 # noticing anything beyond slightly-less-fresh data.
-_CACHE_TTL_SECONDS = 1200.0  # 20 minutes
+_CACHE_TTL_SECONDS = 3600.0  # 60 minutes
 
 TOOLS: list[ToolSpec] = [
     ToolSpec(

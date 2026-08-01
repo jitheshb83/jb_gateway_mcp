@@ -371,10 +371,10 @@ install itself doesn't give you a directory to `cd` into by hand).
 | `drive.list_files` | `drive.readonly` | `account`, `query`, `page_size` |
 | `drive.read_file` | `drive.readonly` | `account`, `file_id` |
 | `bank.list_accounts` | `bank.readonly` | `institution` — masked IBAN only; local keychain read, no live API call |
-| `bank.get_balance` | `bank.readonly` | `institution`, `account_uid` — cached 20min (see "Bank tool result caching" below) |
-| `bank.summarize_spending` | `bank.readonly` | `institution`, `account_uid`, `date_from`, `date_to` — aggregated totals only, no line items; cached 20min |
-| `bank.list_transactions_summary` | `bank.readonly` | `institution`, `account_uid`, `date_from`, `date_to` — date/amount/currency only; cached 20min |
-| `bank.list_transactions_detailed` | `bank.transactions.detailed` | adds counterparty name/description (IBANs still masked) — not granted by default; cached 20min |
+| `bank.get_balance` | `bank.readonly` | `institution`, `account_uid` — cached 60min (see "Bank tool result caching" below) |
+| `bank.summarize_spending` | `bank.readonly` | `institution`, `account_uid`, `date_from`, `date_to` — aggregated totals only, no line items; cached 60min |
+| `bank.list_transactions_summary` | `bank.readonly` | `institution`, `account_uid`, `date_from`, `date_to` — date/amount/currency only; cached 60min |
+| `bank.list_transactions_detailed` | `bank.transactions.detailed` | adds counterparty name/description (IBANs still masked) — not granted by default; cached 60min |
 
 ### Bank tool result caching
 
@@ -383,7 +383,7 @@ Enable Banking enforces a **daily**, not short-term, per-consent access cap
 that institution's whole day is spent, not "wait and retry." The four
 `bank.*` tools that actually reach the live API (everything above except
 `bank.list_accounts`, which is a local keychain read) cache their result
-in memory for 20 minutes, keyed by tool name + exact parameters. A repeat
+in memory for 60 minutes, keyed by tool name + exact parameters. A repeat
 call with identical parameters within that window returns the cached
 result instead of making another live request — still fully audit-logged
 (`outcome: "cached"`, same params, distinguishable from `"success"` in
