@@ -35,11 +35,15 @@ router = ToolRouter(policy, audit)
 for _module in (google_gmail, google_calendar, google_drive):
     _handlers = _module.get_handlers(credential_store)
     for _spec in _module.TOOLS:
-        router.register(_spec.name, _spec.scope, _handlers[_spec.name])
+        router.register(
+            _spec.name, _spec.scope, _handlers[_spec.name], _spec.cache_ttl_seconds
+        )
 
 _bank_handlers = enable_banking.get_handlers(bank_credential_store)
 for _spec in enable_banking.TOOLS:
-    router.register(_spec.name, _spec.scope, _bank_handlers[_spec.name])
+    router.register(
+        _spec.name, _spec.scope, _bank_handlers[_spec.name], _spec.cache_ttl_seconds
+    )
 
 
 @mcp.tool()

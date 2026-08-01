@@ -337,6 +337,15 @@ phase lands — `router.py`/`policy.py` are written against an abstract
   read-only HTTP verbs at the adapter base-class level, not just by policy
   config — so a policy misconfiguration can't grant a transfer capability
   that doesn't exist in code.
+- `ToolRouter` supports an opt-in, in-memory, TTL-based result cache per
+  tool (`ToolSpec.cache_ttl_seconds`) — used for the four live-hitting
+  `bank.*` tools (20min), since Enable Banking's access cap is daily, not
+  short-term, so an avoidable repeat call can exhaust a whole day's quota.
+  Never persisted to disk, cleared on every restart, and a cache hit is
+  still fully audit-logged (`outcome: "cached"`) — the audit guarantee
+  (every call, every caller, tracked) holds regardless of whether the
+  handler was actually invoked. Off by default; never applied to a
+  write/send tool. See README.md "Bank tool result caching".
 
 ## Phased build order
 

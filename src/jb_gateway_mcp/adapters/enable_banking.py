@@ -32,6 +32,16 @@ _BASE_URL = "https://api.enablebanking.com"
 _REQUEST_TIMEOUT_SECONDS = 30.0
 _MAX_TRANSACTION_PAGES = 5
 
+# Enable Banking enforces a daily, not short-term, per-consent access cap
+# ("consented multiplicity without PSU involvement per day") — a 429 means
+# that institution's whole day is spent, not "wait a few minutes." These
+# four tools are the ones that actually call the live API (list_accounts is
+# a local keychain read, never network, so it's left uncached below); a
+# short-lived cache absorbs repeated/near-duplicate calls — e.g. an agent
+# asked a few related questions in one conversation — without the caller
+# noticing anything beyond slightly-less-fresh data.
+_CACHE_TTL_SECONDS = 1200.0  # 20 minutes
+
 TOOLS: list[ToolSpec] = [
     ToolSpec(
         name="bank.list_accounts",
@@ -42,6 +52,7 @@ TOOLS: list[ToolSpec] = [
         name="bank.get_balance",
         scope="bank.readonly",
         description="Get current/available balances for a bank account.",
+        cache_ttl_seconds=_CACHE_TTL_SECONDS,
     ),
     ToolSpec(
         name="bank.summarize_spending",
@@ -50,6 +61,7 @@ TOOLS: list[ToolSpec] = [
             "Aggregate total in/out/net spending and transaction count for a date "
             "range. No counterparty names or descriptions are ever included."
         ),
+        cache_ttl_seconds=_CACHE_TTL_SECONDS,
     ),
     ToolSpec(
         name="bank.list_transactions_summary",
@@ -58,6 +70,7 @@ TOOLS: list[ToolSpec] = [
             "List transactions for a date range: date, amount, currency only "
             "— no counterparty name or description."
         ),
+        cache_ttl_seconds=_CACHE_TTL_SECONDS,
     ),
     ToolSpec(
         name="bank.list_transactions_detailed",
@@ -67,6 +80,7 @@ TOOLS: list[ToolSpec] = [
             "(IBANs still masked). Requires a separate, explicit policy.yaml grant "
             "— not enabled by default."
         ),
+        cache_ttl_seconds=_CACHE_TTL_SECONDS,
     ),
 ]
 
