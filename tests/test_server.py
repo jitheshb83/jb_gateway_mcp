@@ -19,11 +19,18 @@ async def test_ping_over_stdio(tmp_path: Path) -> None:
     # The subprocess only inherits an allowlisted env subset (see
     # mcp.client.stdio.get_default_environment), so JB_GATEWAY_AUDIT_LOG must
     # be passed explicitly to keep this test from writing into the real
-    # user home directory.
+    # user home directory. JB_GATEWAY_POLICY_FILE likewise: its default is
+    # ~/.jb_gateway_mcp/policy.yaml, which may not exist on the machine
+    # running this test — point it at the repo's own tracked policy.yaml
+    # instead of depending on that.
+    repo_root = Path(__file__).resolve().parent.parent
     params = StdioServerParameters(
         command=uv,
         args=["run", "jb-gateway-mcp"],
-        env={"JB_GATEWAY_AUDIT_LOG": str(tmp_path / "audit.jsonl")},
+        env={
+            "JB_GATEWAY_AUDIT_LOG": str(tmp_path / "audit.jsonl"),
+            "JB_GATEWAY_POLICY_FILE": str(repo_root / "policy.yaml"),
+        },
     )
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()

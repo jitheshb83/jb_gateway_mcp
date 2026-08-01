@@ -2,10 +2,11 @@
 
 The first run also registers the application's static credential — the
 `application_id` and private key `.pem` downloaded once from the Enable
-Banking Control Panel (see the `connect-bank-account` skill/README for the
-Control Panel steps, which can't be automated: they require a human sign-in
-and a browser form). Every run performs the per-institution SCA consent flow
-and stores the resulting session.
+Banking Control Panel (see the `connect-bank-account` skill in the
+jb_claude_pluggins `jb-finance-mcp-plugin`, or this repo's own README, for
+the Control Panel steps, which can't be automated: they require a human
+sign-in and a browser form). Every run performs the per-institution SCA
+consent flow and stores the resulting session.
 
 Enable Banking requires an `https://` redirect URL with no plain-http
 localhost exception (unlike Google), so rather than run a local HTTPS

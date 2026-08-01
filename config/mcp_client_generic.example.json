@@ -5,7 +5,8 @@
       "command": "/absolute/path/to/jb_gateway_mcp/scripts/start.sh",
       "args": [],
       "env": {
-        "JB_GATEWAY_CALLER_ID": "local"
+        "JB_GATEWAY_CALLER_ID": "local",
+        "JB_GATEWAY_POLICY_FILE": "/absolute/path/to/jb_gateway_mcp/policy.yaml"
       }
     }
   }

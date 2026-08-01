@@ -83,7 +83,7 @@ server, but part of the same unit:
 
 | Binary | Purpose |
 |---|---|
-| `uv run onboard-google --account <email> --client-secrets <path>` | One-time, human-interactive OAuth consent flow for a Google account. Opens a browser, briefly binds `localhost:8080` for the redirect. See the `connect-google-account` skill for the full guided flow (client-secrets setup, scope selection, policy.yaml grants). |
+| `uv run onboard-google --account <email> --client-secrets <path>` | One-time, human-interactive OAuth consent flow for a Google account. Opens a browser, briefly binds `localhost:8080` for the redirect. See the `connect-google-account` skill (in the [jb_claude_pluggins](https://github.com/jitheshb83/jb_claude_pluggins) `jb-google-notify-plugin`) for the full guided flow (client-secrets setup, scope selection, policy.yaml grants). |
 | `uv run uninstall-google --account <email>` | Revokes the account's grant on Google's side and deletes its keychain token. See `README.md` §"Uninstalling". |
 
 ## Gotchas
