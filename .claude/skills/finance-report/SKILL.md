@@ -1,6 +1,6 @@
 ---
 name: finance-report
-description: Generates a local HTML financial report (income/expense trend, income splits, category breakdown, month-over-month signals, live balance-in-hand, and a next-month expense/income forecast) from linked bank accounts (DNB, Nordea, Revolut via jb_gateway_mcp), and caches the underlying data + a persisted forecast model under ~/Documents/MyFinance/ for reuse without re-hitting the bank API. Can run unattended via a scheduled launchd job (see launchd/) that auto-generates the report for the prior month on the 1st of each month. Use when asked for a spending/usage report, financial statistics, expense or income breakdown, budget trends, current balance, a prediction of next month's expenses, or to set up/check/troubleshoot the monthly automated report.
+description: Generates a local HTML financial report (income/expense trend, income splits, category breakdown, month-over-month signals, live balance-in-hand, and a next-month expense/income forecast) from linked bank accounts (DNB, Nordea, Revolut via jb_gateway_mcp), and caches the underlying data + a persisted forecast model under ~/Documents/MyFinance/ for reuse without re-hitting the bank API. Can run unattended via a scheduled launchd job (see launchd/) that auto-generates the report for the prior month on the 1st of each month and emails a success/failure status notification via Gmail. Use when asked for a spending/usage report, financial statistics, expense or income breakdown, budget trends, current balance, a prediction of next month's expenses, or to set up/check/troubleshoot the monthly automated report.
 ---
 
 # Generating a personal finance report
@@ -141,7 +141,45 @@ exactly that month, logging everything to
 `~/Documents/MyFinance/logs/<label>-run-<timestamp>.log` since it's meant
 to run unattended. `launchd/com.jbgatewaymcp.financereport.monthly.plist`
 is the tracked template that schedules it for 08:00 on the 1st of every
-month (`StartCalendarInterval` with `Day: 1`).
+month (`StartCalendarInterval` with `Day: 1`). After `generate_report.py`
+finishes, it also emails a short status notification via
+`scripts/notify_email.py` — see "Email notifications" below.
+
+### Email notifications
+
+`scripts/notify_email.py` sends from `jithesh83@gmail.com` to
+`jithesh@jithonline.com` via the Gmail adapter directly (same
+direct-adapter-call pattern `generate_report.py` uses for bank data — not
+through the MCP protocol, so it works standalone). Requires the
+`gmail.send` OAuth scope on the stored Google token, which is **not** part
+of `onboard_google.py`'s default read-only scope set — if you see `403
+Insufficient Permission` calling this, re-run `onboard-google` including
+`https://www.googleapis.com/auth/gmail.send` alongside the existing
+readonly scopes (all of them — re-consenting replaces the stored token
+wholesale, it doesn't merge, so omitting a previously-granted scope
+silently drops it).
+
+- **On success**: subject `Finance report ready — <label>`, body has
+  income/expenses/net/savings-rate headline numbers (re-derived from the
+  same `data/<label>-transactions.json` `generate_report.py` just wrote)
+  plus the local report file path.
+- **On failure**: subject `Finance report FAILED — <label>`, body has the
+  failure reason and the log file path, plus a remediation hint for the
+  most likely cause (expired bank consent).
+- **Deliberately NOT the full report or transaction detail** — only
+  headline numbers, to avoid duplicating sensitive financial detail into
+  an email inbox beyond what's necessary. The full report always stays
+  local; the email just says a new one exists (or doesn't) and why.
+- `run_monthly.sh` is **not** `set -e` — a failing `generate_report.py`
+  must still reach the failure-email branch below it, not abort the
+  script first. The script's final `exit "$REPORT_EXIT"` deliberately
+  preserves the *report generation's* exit code as the job's result even
+  though the notification step runs after it — so launchd's "last exit
+  code" always reflects whether the report itself succeeded, never masked
+  by the email step's own success or failure.
+- Manual/ad-hoc report generation (e.g. Claude building a report
+  mid-conversation) never emails anything — only `run_monthly.sh` calls
+  `notify_email.py`, by design, so on-demand use doesn't spam an inbox.
 
 **Install** (the live copy lives outside the repo, in
 `~/Library/LaunchAgents/` — OS-specific, not version-controlled itself,
