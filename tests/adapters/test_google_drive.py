@@ -70,6 +70,24 @@ def test_read_file_google_doc_uses_export(mocker: MockerFixture) -> None:
     client.files.return_value.export.assert_called_once_with(fileId="f2", mimeType="text/plain")
 
 
+def test_read_file_google_sheet_exports_as_csv_not_plain_text(mocker: MockerFixture) -> None:
+    """Google's export API rejects text/plain for spreadsheets (400 error) —
+    text/csv is the correct export mimetype, confirmed against Drive's docs.
+    """
+    client = _patch_client(mocker)
+    client.files.return_value.get.return_value.execute.return_value = {
+        "id": "f4",
+        "name": "Loan Tracker",
+        "mimeType": "application/vnd.google-apps.spreadsheet",
+    }
+    client.files.return_value.export.return_value.execute.return_value = b"a,b\n1,2"
+
+    result = google_drive.read_file(_fake_store(), "me@example.com", "f4")
+
+    assert result["content"] == "a,b\n1,2"
+    client.files.return_value.export.assert_called_once_with(fileId="f4", mimeType="text/csv")
+
+
 def test_read_file_unsupported_mimetype_returns_metadata_only(mocker: MockerFixture) -> None:
     client = _patch_client(mocker)
     client.files.return_value.get.return_value.execute.return_value = {

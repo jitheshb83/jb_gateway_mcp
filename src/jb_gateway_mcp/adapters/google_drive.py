@@ -19,11 +19,13 @@ _SERVICE = "drive"
 _VERSION = "v3"
 _LIST_FIELDS = "files(id, name, mimeType, modifiedTime)"
 _GET_FIELDS = "id, name, mimeType, size"
-_EXPORT_MIMETYPE = "text/plain"
-_EXPORTABLE_GOOGLE_MIMETYPES = {
-    "application/vnd.google-apps.document",
-    "application/vnd.google-apps.spreadsheet",
-    "application/vnd.google-apps.presentation",
+# Google's export API rejects text/plain for Sheets (400 "requested conversion
+# is not supported") — text/csv is the closest plain-text equivalent there,
+# and only covers the first/active sheet tab, never the whole workbook.
+_EXPORT_MIMETYPE_BY_SOURCE = {
+    "application/vnd.google-apps.document": "text/plain",
+    "application/vnd.google-apps.spreadsheet": "text/csv",
+    "application/vnd.google-apps.presentation": "text/plain",
 }
 _MAX_CONTENT_CHARS = 20_000
 
@@ -53,8 +55,9 @@ def list_files(
 
 
 def _fetch_content(client: Any, file_id: str, mime_type: str) -> str | None:
-    if mime_type in _EXPORTABLE_GOOGLE_MIMETYPES:
-        raw = client.files().export(fileId=file_id, mimeType=_EXPORT_MIMETYPE).execute()
+    export_mimetype = _EXPORT_MIMETYPE_BY_SOURCE.get(mime_type)
+    if export_mimetype is not None:
+        raw = client.files().export(fileId=file_id, mimeType=export_mimetype).execute()
     elif mime_type.startswith("text/") or mime_type == "application/json":
         raw = client.files().get_media(fileId=file_id).execute()
     else:
