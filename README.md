@@ -38,7 +38,30 @@ what the skills automate.
 
 If you just want the server itself on `PATH` — e.g. to use the plugins
 above, or to point a non-Claude-Code MCP client at it without cloning this
-repo — install it as a tool instead of `uv sync`-ing a clone:
+repo — install it as a tool instead of `uv sync`-ing a clone.
+
+**Quick path:** run the installer script — it installs `uv` if missing (which
+in turn manages Python itself, so **you don't need Python or `uv`
+pre-installed at all**), installs the server, bootstraps a default
+(deny-everything) policy file, and registers with Claude Code if the
+`claude` CLI is present:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/jitheshb83/jb_gateway_mcp/main/scripts/install.sh | sh
+```
+
+**Using Claude Code, or a similar AI coding assistant, already?** You don't
+even need to open a terminal yourself — just ask it to run that command for
+you (e.g. "install jb_gateway_mcp by running
+`curl -LsSf https://raw.githubusercontent.com/jitheshb83/jb_gateway_mcp/main/scripts/install.sh | sh`").
+It'll drive the terminal, handle the missing-`uv` case, and report back —
+no prior setup assumed on your end beyond having that assistant installed.
+
+It only handles the server + client wiring — connecting a Google account
+or a bank is still a separate, deliberate step (§2-4, §7 below); nothing
+works until you do that.
+
+**Manual path**, if you'd rather see/control each step:
 
 ```bash
 uv tool install --python 3.13 git+https://github.com/jitheshb83/jb_gateway_mcp.git
